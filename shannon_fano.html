@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shannon-Fano Coding</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      background-color: #f4f7f6;
+      color: #333;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    .input-section {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    input {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      width: 300px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+
+    .visualization {
+      border: 1px solid #eee;
+      padding: 20px;
+      border-radius: 4px;
+      min-height: 150px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      background: #fafafa;
+    }
+
+    .step-info {
+      background: #34495e;
+      color: white;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 1.1em;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    th,
+    td {
+      border: 1px solid #dfe6e9;
+      padding: 12px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #2c3e50;
+      color: white;
+      text-transform: uppercase;
+      font-size: 0.9em;
+      letter-spacing: 1px;
+    }
+
+    .bit-cell {
+      width: 40px;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    .bit-0 {
+      background-color: #d1f2eb;
+      color: #0b5345;
+    }
+
+    .bit-1 {
+      background-color: #fdebd0;
+      color: #7e5109;
+    }
+
+    .final-code {
+      font-family: monospace;
+      letter-spacing: 2px;
+      font-weight: bold;
+      color: #2980b9;
+      background: #f8f9fa;
+    }
+
+    .binary-tree {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .node-container {
+      display: flex;
+      gap: 2px;
+      border: 2px solid #333;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .node {
+      padding: 10px;
+      min-width: 40px;
+      text-align: center;
+      border-right: 1px solid #ccc;
+    }
+
+    .node:last-child {
+      border-right: none;
+    }
+
+    .split-line {
+      width: 2px;
+      height: 20px;
+      background: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Shannon-Fano Coding </h1>
+
+    <div class="input-section">
+      <input type="text" id="probabilities" placeholder="Enter probabilities (e.g., 0.4, 0.2, 0.2, 0.1, 0.1)"
+        value="0.4, 0.2, 0.2, 0.1, 0.1">
+      <button onclick="startVisualization()">Initialize</button>
+    </div>
+
+    <div id="stepContainer" style="display: none;">
+      <div class="step-info" id="stepDescription">
+        Enter probabilities and click Initialize to start.
+      </div>
+
+      <div class="controls">
+        <button id="prevBtn" onclick="prevStep()" disabled>Previous</button>
+        <button id="nextBtn" onclick="nextStep()">Next Step</button>
+        <button onclick="reset()">Reset</button>
+      </div>
+
+      <div class="visualization" id="visualizationSurface">
+        <!-- Visual steps will appear here -->
+      </div>
+
+      <table id="resultTable">
+        <thead id="tableHead">
+          <tr>
+            <th>Symbol</th>
+            <th>Probability</th>
+            <th>Code</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let symbols = [];
+    let steps = [];
+    let currentStepIndex = 0;
+    let maxCodeLength = 0;
+
+    function startVisualization() {
+      const input = document.getElementById('probabilities').value;
+      const probs = input.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+
+      if (probs.length === 0) {
+        alert("Please enter valid probabilities.");
+        return;
+      }
+
+      // Create symbols and sort descending
+      symbols = probs.map((p, i) => ({
+        id: String.fromCharCode(65 + i),
+        p: p,
+        code: ''
+      })).sort((a, b) => b.p - a.p);
+
+      steps = [];
+      maxCodeLength = 0;
+      generateSteps(0, symbols.length - 1);
+
+      // Final step
+      steps.push({
+        description: "Encoding Complete!",
+        type: "final",
+        symbols: JSON.parse(JSON.stringify(symbols))
+      });
+
+      currentStepIndex = 0;
+      document.getElementById('stepContainer').style.display = 'block';
+      showStep();
+    }
+
+    function generateSteps(start, end) {
+      if (start >= end) return;
+
+      // Initial range step
+      steps.push({
+        description: `Working with symbols: ${symbols.slice(start, end + 1).map(s => s.id).join(', ')}`,
+        type: 'range',
+        start,
+        end,
+        symbols: JSON.parse(JSON.stringify(symbols))
+      });
+
+      // Find split point
+      let splitIndex = findSplitPoint(start, end);
+
+      // Apply codes
+      for (let i = start; i <= end; i++) {
+        if (i <= splitIndex) {
+          symbols[i].code += '0';
+        } else {
+          symbols[i].code += '1';
+        }
+        maxCodeLength = Math.max(maxCodeLength, symbols[i].code.length);
+      }
+
+      steps.push({
+        description: `Split partition between ${symbols[splitIndex].id} and ${symbols[splitIndex + 1].id}. Top half gets '0', bottom half gets '1'.`,
+        type: 'split',
+        start,
+        end,
+        splitIndex,
+        symbols: JSON.parse(JSON.stringify(symbols))
+      });
+
+      // Recurse
+      generateSteps(start, splitIndex);
+      generateSteps(splitIndex + 1, end);
+    }
+
+    function findSplitPoint(start, end) {
+      let total = 0;
+      for (let i = start; i <= end; i++) total += symbols[i].p;
+
+      let half = total / 2;
+      let currentSum = 0;
+      let diff = Infinity;
+      let splitIndex = start;
+
+      for (let i = start; i < end; i++) {
+        currentSum += symbols[i].p;
+        let currentDiff = Math.abs(half - currentSum);
+        if (currentDiff < diff) {
+          diff = currentDiff;
+          splitIndex = i;
+        } else {
+          break;
+        }
+      }
+      return splitIndex;
+    }
+
+    function showStep() {
+      const step = steps[currentStepIndex];
+      document.getElementById('stepDescription').innerText = `Step ${currentStepIndex + 1}: ${step.description}`;
+
+      // Calculate how many bit columns we need based on max code length seen so far across all steps' symbols
+      // However, it's simpler to just use the global maxCodeLength calculated during generation.
+
+      // Update Table Header
+      const thead = document.getElementById('tableHead');
+      let headerHtml = `<tr><th>Symbol</th><th>Probability</th>`;
+      for (let i = 0; i < maxCodeLength; i++) {
+        headerHtml += `<th>Bit ${i + 1}</th>`;
+      }
+      headerHtml += `<th>Final Code</th></tr>`;
+      thead.innerHTML = headerHtml;
+
+      // Update Table Body
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+      step.symbols.forEach((s, idx) => {
+        const tr = document.createElement('tr');
+
+        // Highlight active range
+        if (step.type !== 'final' && idx >= step.start && idx <= step.end) {
+          tr.style.backgroundColor = '#f9fbff';
+          tr.style.fontWeight = 'bold';
+          tr.style.borderLeft = '4px solid #3498db';
+        }
+
+        let rowHtml = `<td>${s.id}</td><td>${s.p.toFixed(2)}</td>`;
+
+        // Split code into individual bits
+        const bits = s.code.split('');
+        for (let i = 0; i < maxCodeLength; i++) {
+          const bit = bits[i] || '';
+          const bitClass = bit === '0' ? 'bit-0' : (bit === '1' ? 'bit-1' : '');
+          rowHtml += `<td class="bit-cell ${bitClass}">${bit}</td>`;
+        }
+
+        rowHtml += `<td class="final-code">${s.code}</td>`;
+        tr.innerHTML = rowHtml;
+        tbody.appendChild(tr);
+      });
+
+      // Update Visualization Surface
+      const surface = document.getElementById('visualizationSurface');
+      surface.innerHTML = '';
+      renderVisualization(step, surface);
+
+      // Update Buttons
+      document.getElementById('prevBtn').disabled = currentStepIndex === 0;
+      document.getElementById('nextBtn').disabled = currentStepIndex === steps.length - 1;
+    }
+
+    function renderVisualization(step, container) {
+      if (step.type === 'final') {
+        return;
+      }
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'binary-tree';
+
+      const nodeContainer = document.createElement('div');
+      nodeContainer.className = 'node-container';
+
+      step.symbols.forEach((s, i) => {
+        const node = document.createElement('div');
+        node.className = 'node';
+        node.innerText = `${s.id}\n(${s.p.toFixed(2)})`;
+
+        if (i >= step.start && i <= step.end) {
+          node.style.border = '2px solid #3498db';
+          if (step.type === 'split') {
+            node.style.backgroundColor = i <= step.splitIndex ? '#d1f2eb' : '#fdebd0';
+            const bitLabel = document.createElement('div');
+            bitLabel.style.fontSize = '0.8em';
+            bitLabel.style.color = '#555';
+            bitLabel.innerText = i <= step.splitIndex ? 'Bit: 0' : 'Bit: 1';
+            node.appendChild(bitLabel);
+          }
+        } else {
+          node.style.opacity = '0.3';
+        }
+        nodeContainer.appendChild(node);
+      });
+
+      wrapper.appendChild(nodeContainer);
+      container.appendChild(wrapper);
+    }
+
+    function nextStep() {
+      if (currentStepIndex < steps.length - 1) {
+        currentStepIndex++;
+        showStep();
+      }
+    }
+
+    function prevStep() {
+      if (currentStepIndex > 0) {
+        currentStepIndex--;
+        showStep();
+      }
+    }
+
+    function reset() {
+      document.getElementById('stepContainer').style.display = 'none';
+      document.getElementById('probabilities').value = '0.4, 0.2, 0.2, 0.1, 0.1';
+    }
+  </script>
+</body>
+
+</html>

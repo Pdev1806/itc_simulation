@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Shannon-Fano Progressive Table</title>
+<style>
+body {
+    background:#0f172a;
+    color:white;
+    font-family:Arial;
+    padding:20px;
+}
+.container {
+    max-width:900px;
+    margin:auto;
+}
+textarea,input,button {
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    border-radius:6px;
+    border:none;
+}
+button {
+    background:#3b82f6;
+    color:white;
+    cursor:pointer;
+}
+table {
+    width:100%;
+    border-collapse:collapse;
+    margin-top:20px;
+}
+td,th {
+    border:1px solid #334155;
+    padding:10px;
+    text-align:center;
+}
+.active {
+    background:#1e293b;
+}
+.zero {
+    color:#22c55e;
+    font-weight:bold;
+}
+.one {
+    color:#ef4444;
+    font-weight:bold;
+}
+.output {
+    background:#020617;
+    padding:10px;
+    border-radius:6px;
+    margin-top:10px;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h1>Shannon-Fano Progressive Table</h1>
+
+<textarea id="inputData">A 0.4
+B 0.2
+C 0.2
+D 0.1
+E 0.1</textarea>
+
+<button onclick="start()">Visualize</button>
+
+<table id="table"></table>
+
+<div>
+<h3>Encoding</h3>
+<input id="encodeInput">
+<button onclick="encode()">Encode</button>
+<div id="encoded" class="output"></div>
+
+<h3>Decoding</h3>
+<input id="decodeInput">
+<button onclick="decode()">Decode</button>
+<div id="decoded" class="output"></div>
+</div>
+
+</div>
+
+<script>
+let codes = {}
+
+function parse() {
+    let lines = document.getElementById("inputData").value.trim().split("\n")
+    let arr = []
+    for (let l of lines) {
+        let [s,p] = l.split(" ")
+        arr.push({s, p: parseFloat(p), code:""})
+    }
+    arr.sort((a,b)=>b.p-a.p)
+    return arr
+}
+
+function addColumn(arr, start, end, table, colIndex) {
+    if (start >= end) return
+
+    let total=0
+    for (let i=start;i<=end;i++) total+=arr[i].p
+
+    let acc=0, split=start
+    for (let i=start;i<=end;i++) {
+        acc+=arr[i].p
+        if (acc>=total/2) { split=i; break }
+    }
+
+    for (let i=0;i<arr.length;i++) {
+        let row = table.rows[i]
+
+        let cell = document.createElement("td")
+
+        if (i>=start && i<=end) {
+            if (i<=split) {
+                cell.innerHTML = "<span class='zero'>0</span>"
+                arr[i].code += "0"
+            } else {
+                cell.innerHTML = "<span class='one'>1</span>"
+                arr[i].code += "1"
+            }
+            cell.classList.add("active")
+        } else {
+            cell.innerHTML = ""
+        }
+
+        row.appendChild(cell)
+    }
+
+    addColumn(arr, start, split, table, colIndex+1)
+    addColumn(arr, split+1, end, table, colIndex+1)
+}
+
+function start() {
+    codes = {}
+
+    let arr = parse()
+    let table = document.getElementById("table")
+    table.innerHTML = ""
+
+    for (let item of arr) {
+        let tr = document.createElement("tr")
+
+        let s = document.createElement("td")
+        s.innerText = item.s
+
+        let p = document.createElement("td")
+        p.innerText = item.p
+
+        tr.appendChild(s)
+        tr.appendChild(p)
+        table.appendChild(tr)
+    }
+
+    addColumn(arr, 0, arr.length-1, table, 0)
+
+    arr.forEach(x=>codes[x.s]=x.code)
+}
+
+function encode() {
+    let input = document.getElementById("encodeInput").value
+    let res=""
+    for (let c of input) if (codes[c]) res+=codes[c]
+
+    document.getElementById("encoded").innerText = res
+    document.getElementById("decodeInput").value = res
+}
+
+function decode() {
+    let bin = document.getElementById("decodeInput").value
+    let rev = {}
+    for (let k in codes) rev[codes[k]] = k
+
+    let temp="", res=""
+    for (let b of bin) {
+        temp+=b
+        if (rev[temp]) {
+            res+=rev[temp]
+            temp=""
+        }
+    }
+
+    document.getElementById("decoded").innerText = res
+}
+</script>
+
+</body>
+</html>
